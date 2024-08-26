@@ -107,13 +107,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     for (root, dirs, files) in os.walk(args.root, topdown=True):
-        if '.nochecksums' in files:
+        if not files or '.nochecksums' in files:
             continue
 
         if is_excluded(root, EXCLUDED_DIRS):
-            continue
-
-        if not files:
             continue
 
         if not args.hidden and is_hidden(root):
