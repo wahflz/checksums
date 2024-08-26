@@ -98,10 +98,12 @@ if __name__ == '__main__':
                         help="Create checksums")
     action.add_argument('-v', '--verify', action='store_true', dest='verify',
                         help="Verify checksums")
-    action.add_argument('-r', '--reset', action='store_true', dest='reset',
+    extra = parser.add_mutually_exclusive_group(required=True)
+    extra.add_argument('--reset', action='store_true', dest='reset',
                         help="Reset checksums")
-    parser.add_argument('root', help='The starting directory')
-
+    extra.add_argument('--refresh', action='store_true', dest='reset',
+                        help="Refresh checksums")
+    extra.add_argument('root', help='The starting directory')
     args = parser.parse_args()
 
     for (root, dirs, files) in os.walk(args.root, topdown=True):
@@ -124,7 +126,7 @@ if __name__ == '__main__':
                 print(f'! {sumfile}')
                 continue
 
-        if args.create or args.reset:
+        if args.create:
             write = False
 
             for fname in files:
@@ -137,6 +139,8 @@ if __name__ == '__main__':
                     continue
 
                 try:
+                    # When refresh is enabled, check mtime of both files
+                    # If mtime of csum file is < data file then update hash
                     checksums[fname] = get_checksum(path.join(root, fname))
                 except FileNotFoundError:
                     print(f'? {fpath}')
