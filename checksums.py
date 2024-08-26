@@ -33,7 +33,7 @@ def get_attributes(fpath: str) -> int:
 
     if attrs == -1:
         raise FileNotFoundError(fpath)
-    
+
     return attrs
 
 def is_hidden(fpath: str) -> bool:
@@ -43,7 +43,7 @@ def is_hidden(fpath: str) -> bool:
 def protect_file(fpath: str):
     attrs = get_attributes(fpath)
     set_attributes(fpath, attrs | 0x03)
-    
+
 def unprotect_file(fpath: str):
     attrs = get_attributes(fpath)
     set_attributes(fpath, attrs & ~0x03)
@@ -57,8 +57,8 @@ def get_checksum(fpath: str) -> str:
 
     return value.hexdigest()
 
-def read_sumfile(sumfile: str) -> dict:   
-    dpath = path.dirname(sumfile)    
+def read_sumfile(sumfile: str) -> dict:
+    dpath = path.dirname(sumfile)
     checksums = {}
 
     with open(sumfile, 'r', encoding='utf-8') as f:
@@ -124,7 +124,7 @@ if __name__ == '__main__':
                 print(f'! {sumfile}')
                 continue
 
-        if args.create:
+        if args.create or args.reset:
             write = False
 
             for fname in files:
@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
                 if fname in checksums or is_excluded(fname, EXCLUDED_FILES):
                     continue
-                
+
                 try:
                     checksums[fname] = get_checksum(path.join(root, fname))
                 except FileNotFoundError:
