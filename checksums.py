@@ -135,9 +135,9 @@ if __name__ == '__main__':
                 fpath = path.join(root, fname)
 
                 if (
-                    is_excluded(fname, EXCLUDED_FILES) or
+                    (not args.refresh and fname in checksums) or
                     (not args.hidden and is_hidden(fpath)) or
-                    (not args.refresh and fname in checksums)
+                    is_excluded(fname, EXCLUDED_FILES)
                 ):
                     continue
 
