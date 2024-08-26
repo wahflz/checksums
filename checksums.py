@@ -140,9 +140,16 @@ if __name__ == '__main__':
                 ):
                     continue
 
+                if not args.refresh and fname in checksums:
+                    continue
+
+                # With --refresh
+                # Skip files that are older than the sumfile
+                # Only if a checksum exists in the sumfile
                 if (
-                    (not args.refresh and fname in checksums) or
-                    (args.refresh and checksums_mtime >= path.getmtime(fpath))
+                    args.refresh and
+                    checksums_mtime >= path.getmtime(fpath) and
+                    fname in checksums
                 ):
                     continue
 
