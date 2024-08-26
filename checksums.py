@@ -103,7 +103,7 @@ if __name__ == '__main__':
                         help="Reset checksums")
     extra.add_argument('--refresh', action='store_true', dest='refresh',
                         help="Refresh checksums")
-    extra.add_argument('root', help='The starting directory')
+    parser.add_argument('root', help='The starting directory')
     args = parser.parse_args()
 
     for (root, dirs, files) in os.walk(args.root, topdown=True):
