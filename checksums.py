@@ -101,7 +101,7 @@ if __name__ == '__main__':
     extra = parser.add_mutually_exclusive_group(required=True)
     extra.add_argument('--reset', action='store_true', dest='reset',
                         help="Reset checksums")
-    extra.add_argument('--refresh', action='store_true', dest='reset',
+    extra.add_argument('--refresh', action='store_true', dest='refresh',
                         help="Refresh checksums")
     extra.add_argument('root', help='The starting directory')
     args = parser.parse_args()
@@ -118,10 +118,12 @@ if __name__ == '__main__':
 
         sumfile = path.join(root, SUMFILE_NAME)
         checksums = {}
+        checksums_mtime = 0.0
 
         if path.isfile(sumfile) and not args.reset:
             try:
                 checksums = read_sumfile(sumfile)
+                checksums_mtime = path.getmtime(sumfile)
             except PermissionError:
                 print(f'! {sumfile}')
                 continue
@@ -139,8 +141,9 @@ if __name__ == '__main__':
                     continue
 
                 try:
-                    # When refresh is enabled, check mtime of both files
-                    # If mtime of csum file is < data file then update hash
+                    if args.refresh and checksums_mtime >= path.getmtime(fpath):
+                        continue
+
                     checksums[fname] = get_checksum(path.join(root, fname))
                 except FileNotFoundError:
                     print(f'? {fpath}')
