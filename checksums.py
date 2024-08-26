@@ -134,16 +134,19 @@ if __name__ == '__main__':
             for fname in files:
                 fpath = path.join(root, fname)
 
-                if not args.hidden and is_hidden(fpath):
+                if (
+                    is_excluded(fname, EXCLUDED_FILES) or
+                    (not args.hidden and is_hidden(fpath))
+                ):
                     continue
 
-                if fname in checksums or is_excluded(fname, EXCLUDED_FILES):
+                if (
+                    (not args.refresh and fname in checksums) or
+                    (args.refresh and checksums_mtime >= path.getmtime(fpath))
+                ):
                     continue
 
                 try:
-                    if args.refresh and checksums_mtime >= path.getmtime(fpath):
-                        continue
-
                     checksums[fname] = get_checksum(path.join(root, fname))
                 except FileNotFoundError:
                     print(f'? {fpath}')
