@@ -98,7 +98,7 @@ if __name__ == '__main__':
                         help="Create checksums")
     action.add_argument('-v', '--verify', action='store_true', dest='verify',
                         help="Verify checksums")
-    extra = parser.add_mutually_exclusive_group(required=True)
+    extra = parser.add_mutually_exclusive_group(required=False)
     extra.add_argument('--reset', action='store_true', dest='reset',
                         help="Reset checksums")
     extra.add_argument('--refresh', action='store_true', dest='refresh',
