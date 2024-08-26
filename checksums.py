@@ -136,11 +136,9 @@ if __name__ == '__main__':
 
                 if (
                     is_excluded(fname, EXCLUDED_FILES) or
-                    (not args.hidden and is_hidden(fpath))
+                    (not args.hidden and is_hidden(fpath)) or
+                    (not args.refresh and fname in checksums)
                 ):
-                    continue
-
-                if not args.refresh and fname in checksums:
                     continue
 
                 # With --refresh
