@@ -1,4 +1,5 @@
 import os
+import re
 import ctypes
 import hashlib
 import argparse
@@ -22,36 +23,36 @@ EXCLUDED_FILES = frozenset({
 def is_excluded(name: str, patterns: Iterable) -> bool:
     return any(fnmatch(name, p) for p in patterns)
 
-def set_attributes(fpath: str, value: int):
-    ret = ctypes.windll.kernel32.SetFileAttributesW(fpath, value)
+def set_attributes(filepath: str, value: int):
+    ret = ctypes.windll.kernel32.SetFileAttributesW(filepath, value)
 
     if not ret:
         raise IOError('failed to set file attributes')
 
-def get_attributes(fpath: str) -> int:
-    attrs = ctypes.windll.kernel32.GetFileAttributesW(fpath)
+def get_attributes(filepath: str) -> int:
+    attrs = ctypes.windll.kernel32.GetFileAttributesW(filepath)
 
     if attrs == -1:
-        raise FileNotFoundError(fpath)
+        raise FileNotFoundError(filepath)
 
     return attrs
 
-def is_hidden(fpath: str) -> bool:
-    attrs = get_attributes(fpath)
+def is_hidden(filepath: str) -> bool:
+    attrs = get_attributes(filepath)
     return bool(attrs & 0x02 != 0)
 
-def protect_file(fpath: str):
-    attrs = get_attributes(fpath)
-    set_attributes(fpath, attrs | 0x03)
+def protect_file(filepath: str):
+    attrs = get_attributes(filepath)
+    set_attributes(filepath, attrs | 0x03)
 
-def unprotect_file(fpath: str):
-    attrs = get_attributes(fpath)
-    set_attributes(fpath, attrs & ~0x03)
+def unprotect_file(filepath: str):
+    attrs = get_attributes(filepath)
+    set_attributes(filepath, attrs & ~0x03)
 
-def get_checksum(fpath: str) -> str:
+def get_checksum(filepath: str) -> str:
     value = hashlib.sha256()
 
-    with open(fpath, 'rb') as file:
+    with open(filepath, 'rb') as file:
         while chunk := file.read(8192):
             value.update(chunk)
 
@@ -61,6 +62,17 @@ def read_sumfile(sumfile: str) -> dict:
     dpath = path.dirname(sumfile)
     checksums = {}
 
+    re_sumfile_gnu = re.compile(
+        r'(?P<checksum>[a-fA-F0-9]{64})'
+        r'(\s{2}|\s\*)'
+        r'(?P<filename>.+)'
+    )
+    re_sumfile_bsd = re.compile(
+        r'SHA256\s'
+        r'\((?P<filename>.+)\)\s=\s'
+        r'(?P<checksum>[a-fA-F0-9]{64})'
+    )
+
     with open(sumfile, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
@@ -68,14 +80,19 @@ def read_sumfile(sumfile: str) -> dict:
             if not line or line[0] in {'#', ';'}:
                 continue
 
-            parts = line.split(SUMFILE_DELIMITER, 1)
-            if len(parts) == 2:
-                checksum, fname = parts
+            if match := re_sumfile_gnu.match(line):
+                filename = match.group('filename')
+                checksum = match.group('checksum')
+            elif match := re_sumfile_bsd.match(line):
+                filename = match.group('filename')
+                checksum = match.group('checksum')
+            else:
+                raise ValueError('could not parse sumfile')
 
-                if not path.exists(path.join(dpath, fname)):
-                    continue
+            if not path.exists(path.join(dpath, filename)):
+                continue
 
-                checksums[fname] = checksum
+            checksums[filename] = checksum
 
     return checksums
 
@@ -84,8 +101,8 @@ def write_sumfile(sumfile: str, data: dict):
         unprotect_file(sumfile)
 
     with open(sumfile, 'w', encoding='utf-8', newline='\n') as file:
-        for fname, checksum in data.items():
-            file.write(f"{checksum}{SUMFILE_DELIMITER}{fname}\n")
+        for filename, checksum in data.items():
+            file.write(f"{checksum}{SUMFILE_DELIMITER}{filename}\n")
 
     protect_file(sumfile)
 
@@ -116,28 +133,27 @@ if __name__ == '__main__':
         if not args.hidden and is_hidden(root):
             continue
 
-        sumfile = path.join(root, SUMFILE_NAME)
-        checksums = {}
-        checksums_mtime = 0.0
-
-        if path.isfile(sumfile) and not args.reset:
-            try:
-                checksums = read_sumfile(sumfile)
-                checksums_mtime = path.getmtime(sumfile)
-            except PermissionError:
-                print(f'! {sumfile}')
-                continue
-
         if args.create:
+            sumfile = path.join(root, SUMFILE_NAME)
+            checksums = {}
+            checksums_mtime = 0.0
             write = False
 
-            for fname in files:
-                fpath = path.join(root, fname)
+            if path.isfile(sumfile) and not args.reset:
+                try:
+                    checksums = read_sumfile(sumfile)
+                    checksums_mtime = path.getmtime(sumfile)
+                except (PermissionError, ValueError):
+                    print(f'! {sumfile}')
+                    continue
+
+            for filename in files:
+                filepath = path.join(root, filename)
 
                 if (
-                    (not args.refresh and fname in checksums) or
-                    (not args.hidden and is_hidden(fpath)) or
-                    is_excluded(fname, EXCLUDED_FILES)
+                    (not args.refresh and filename in checksums) or
+                    (not args.hidden and is_hidden(filepath)) or
+                    is_excluded(filename, EXCLUDED_FILES)
                 ):
                     continue
 
@@ -146,38 +162,53 @@ if __name__ == '__main__':
                 # Only if a checksum exists in the sumfile
                 if (
                     args.refresh and
-                    checksums_mtime >= path.getmtime(fpath) and
-                    fname in checksums
+                    checksums_mtime >= path.getmtime(filepath) and
+                    filename in checksums
                 ):
                     continue
 
                 try:
-                    checksums[fname] = get_checksum(path.join(root, fname))
+                    checksums[filename] = get_checksum(path.join(root, filename))
                 except FileNotFoundError:
-                    print(f'? {fpath}')
+                    print(f'? {filepath}')
                     continue
                 except PermissionError:
-                    print(f'! {fpath}')
+                    print(f'! {filepath}')
                     continue
 
                 write = True
-                print(f'+ {fpath}')
+                print(f'+ {filepath}')
 
             if write and checksums:
                 try:
                     write_sumfile(sumfile, checksums)
                 except PermissionError:
-                    print(f'! {fpath}')
+                    print(f'! {filepath}')
         elif args.verify:
-            for fname, oldsum in checksums.items():
-                fpath = path.join(root, fname)
+            for f in files:
+                if not f.endswith('.sha256'):
+                    continue
+
+                sumfile = path.join(root, f)
+
+                if not path.isfile(sumfile):
+                    continue
 
                 try:
-                    newsum = get_checksum(fpath)
-                except FileNotFoundError:
-                    print(f'? {fpath}')
-                except PermissionError:
-                    print(f'! {fpath}')
+                    checksums = read_sumfile(sumfile)
+                except (PermissionError, ValueError):
+                    print(f'! {sumfile}')
+                    continue
 
-                if oldsum != newsum:
-                    print(f'X {fpath}')
+                for filename, checksum_old in checksums.items():
+                    filepath = path.join(root, filename)
+
+                    try:
+                        checksum_new = get_checksum(filepath)
+                    except FileNotFoundError:
+                        print(f'? {filepath}')
+                    except PermissionError:
+                        print(f'! {filepath}')
+
+                    if checksum_new.casefold() != checksum_old.casefold():
+                        print(f'X {filepath}')
