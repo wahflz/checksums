@@ -189,7 +189,7 @@ if __name__ == '__main__':
                 if not f.endswith('.sha256'):
                     continue
 
-                sumfile = path.join(root, f)
+                sumfile = path.join(root, SUMFILE_NAME)
 
                 if not path.isfile(sumfile):
                     continue
@@ -207,8 +207,10 @@ if __name__ == '__main__':
                         checksum_new = get_checksum(filepath)
                     except FileNotFoundError:
                         print(f'? {filepath}')
+                        continue
                     except PermissionError:
                         print(f'! {filepath}')
+                        continue
 
                     if checksum_new.casefold() != checksum_old.casefold():
                         print(f'X {filepath}')
